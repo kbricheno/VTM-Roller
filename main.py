@@ -15,7 +15,7 @@ hungerDiceList = []
 def get_dice(normal):
 
     while True:
-        dice = input("Normal dice: ") if normal else input("Hunger dice: ")
+        dice = input("\nNormal dice: ") if normal else input("Hunger dice: ")
         if not dice.isdigit():
             print("Please enter a whole number.\n")
             continue
@@ -23,35 +23,36 @@ def get_dice(normal):
             return dice
 
 
-def roll_dice(dice, list_):
+def roll_dice(dice):
 
+    diceList = []
     for i in range(int(dice)):
         result = randint(1, 10)
-        list_.append(result)
+        diceList.append(result)
+
+    return diceList
 
 
-def evaluate_dice(normal, list_):
-    global successes, crits, messyCrits, failures, hungerFailures, bestialFails
+def evaluate_dice():
+    global successes, crits, messyCrits, failures, hungerFailures, bestialFails, normalDiceList, hungerDiceList
 
-    if normal:
-        for result in list_:
-            if result == 10:
-                crits += 1
-            elif result >= 6:
-                successes += 1
-            else:
-                failures += 1
+    for result in normalDiceList:
+        if result == 10:
+            crits += 1
+        elif result >= 6:
+            successes += 1
+        else:
+            failures += 1
 
-    else:
-        for result in list_:
-            if result == 10:
-                messyCrits += 1
-            elif result >= 6:
-                successes += 1
-            elif result == 1:
-                bestialFails += 1
-            else:
-                hungerFailures += 1
+    for result in hungerDiceList:
+        if result == 10:
+            messyCrits += 1
+        elif result >= 6:
+            successes += 1
+        elif result == 1:
+            bestialFails += 1
+        else:
+            hungerFailures += 1
 
 
 def print_results(normalDice_, hungerDice_):
@@ -89,8 +90,8 @@ def print_results(normalDice_, hungerDice_):
     print()
 
 
-def clear_results(normalDiceList_, hungerDiceList_):
-    global successes, crits, messyCrits, failures, hungerFailures, bestialFails
+def clear_results():
+    global successes, crits, messyCrits, failures, hungerFailures, bestialFails, normalDiceList, hungerDiceList
 
     successes = 0
     crits = 0
@@ -99,51 +100,42 @@ def clear_results(normalDiceList_, hungerDiceList_):
     hungerFailures = 0
     bestialFails = 0
 
-    normalDiceList_.clear()
-    hungerDiceList_.clear()
+    normalDiceList.clear()
+    hungerDiceList.clear()
 
 
 def roll_again():
 
     while True:
-        answer = input("Roll again? (Or \"re-roll\"): ").lower().strip()
-        acceptableTerms = ["reroll", "re-roll", "re_roll" "re-do", "redo"]
-        for word in answer.split():
-            if word in acceptableTerms:
-                return 0
-
-        restart = list(answer)
-        if "n" in restart:
-            return 2
-        elif "y" in restart:
-            return 1
+        answer = input("Roll again? ").lower().strip()
+        if "n" in [*answer]:
+            return False
+        elif "y" in [*answer]:
+            return True
         else:
-            print("Please type Y or N (or \"re-roll\").\n")
+            print("Please type Y or N\n")
             continue
 
 
 def main():
     global normalDiceList, hungerDiceList
 
-    clear_results(normalDiceList, hungerDiceList)
+    clear_results()
 
     normalDice = int(get_dice(True))
     hungerDice = int(get_dice(False))
 
-    roll_dice(normalDice, normalDiceList)
-    roll_dice(hungerDice, hungerDiceList)
+    normalDiceList = roll_dice(normalDice)
+    hungerDiceList = roll_dice(hungerDice)
 
-    evaluate_dice(True, normalDiceList)
-    evaluate_dice(False, hungerDiceList)
+    evaluate_dice()
 
     print_results(normalDice, hungerDice)
 
 
 while True:
     main()
-    if roll_again() == 1:
+    if roll_again():
         continue
-    # elif roll_again() == 0:
-    #     re_roll()
     else:
         break
