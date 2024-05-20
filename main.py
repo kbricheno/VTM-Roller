@@ -1,14 +1,6 @@
 from random import randint
 from math import floor
 
-successes = 0
-hungerSuccesses = 0
-crits = 0
-messyCrits = 0
-failures = 0
-hungerFailures = 0
-bestialFails = 0
-
 normalDiceList = []
 hungerDiceList = []
 
@@ -35,43 +27,59 @@ def roll_dice(dice):
 
 
 def evaluate_dice():
-    global successes, hungerSuccesses, crits, messyCrits, failures, hungerFailures, bestialFails, \
-        normalDiceList, hungerDiceList
+    global normalDiceList, hungerDiceList
+
+    resultTypes = {"successes": 0, "hungerSuccesses": 0,
+                   "crits": 0, "messyCrits": 0,
+                   "failures": 0, "hungerFailures": 0, "bestialFailures": 0}
 
     for result in normalDiceList:
         if result == 10:
-            crits += 1
+            resultTypes["crits"] += 1
         elif result >= 6:
-            successes += 1
+            resultTypes["successes"] += 1
         else:
-            failures += 1
+            resultTypes["failures"] += 1
 
     for result in hungerDiceList:
         if result == 10:
-            messyCrits += 1
+            resultTypes["messyCrits"] += 1
         elif result >= 6:
-            hungerSuccesses += 1
+            resultTypes["hungerSuccesses"] += 1
         elif result == 1:
-            bestialFails += 1
+            resultTypes["bestialFailures"] += 1
         else:
-            hungerFailures += 1
+            resultTypes["hungerFailures"] += 1
+
+    return resultTypes
 
 
-def print_results(normalDice_, hungerDice_):
-    global successes, hungerSuccesses, crits, messyCrits, failures, hungerFailures, bestialFails, normalDiceList, hungerDiceList
+def print_results(results):
+    global normalDiceList, hungerDiceList
+
+    # for ease of readability below
+    successes = results["successes"]
+    hungerSuccesses = results["hungerSuccesses"]
+    crits = results["crits"]
+    messyCrits = results["messyCrits"]
+    failures = results["failures"]
+    hungerFailures = results["hungerFailures"]
+    bestialFailures = results["bestialFailures"]
 
     combinedSuccesses = successes + hungerSuccesses
+    combinedFailures = failures + hungerFailures + bestialFailures
 
     print()
     if normalDiceList:
-        print(f"Normal dice ({normalDice_}): {normalDiceList}")
+        print(f"Normal dice ({len(normalDiceList)}): {normalDiceList}")
     if hungerDiceList:
-        print(f"Hunger dice ({hungerDice_}): {hungerDiceList}")
+        print(f"Hunger dice ({len(hungerDiceList)}): {hungerDiceList}")
     print()
 
     if combinedSuccesses + crits + messyCrits == 0:
         print(f"Oh no! 0 successes.\n"
-              f"Failures: {failures} normal, {hungerFailures} hunger, and {bestialFails} bestial")
+              f"Failures: {combinedFailures} ({failures} normal, {hungerFailures} hunger, and "
+              f"{bestialFailures} bestial)")
 
     elif crits + messyCrits >= 2:
         if messyCrits >= 1:
@@ -79,38 +87,33 @@ def print_results(normalDice_, hungerDice_):
             print(f"Messy crit!\n"
                   f"Successes: {combinedSuccesses + additionalSuccesses} ({combinedSuccesses} success(es) + "
                   f"{messyCrits} hunger and {crits} normal crit(s)\n"
-                  f"Failures: {failures} normal, {hungerFailures} hunger, and {bestialFails} bestial")
+                  f"Failures: {combinedFailures} ({failures} normal, {hungerFailures} hunger, and "
+                  f"{bestialFailures} bestial)")
         else:
             additionalSuccesses = (floor(crits / 2) * 4) + (crits % 2)
             print(f"Crit!\n" +
                   f"Successes: {combinedSuccesses + additionalSuccesses} ({combinedSuccesses} success(es) + {crits} "
                   f"normal crits)\n" +
-                  f"Failures: {failures} normal, {hungerFailures} hunger, and {bestialFails} bestial")
+                  f"Failures: {combinedFailures} ({failures} normal, {hungerFailures} hunger, and "
+                  f"{bestialFailures} bestial)")
 
     else:
         print(f"No crits.\n"
               f"Successes: {combinedSuccesses + crits + messyCrits}\n"
-              f"Failures: {failures} normal, {hungerFailures} hunger, and {bestialFails} bestial")
+              f"Failures: {combinedFailures} ({failures} normal, {hungerFailures} hunger, and "
+              f"{bestialFailures} bestial)")
 
     print()
 
 
 def clear_results():
-    global successes, hungerSuccesses, crits, messyCrits, failures, hungerFailures, bestialFails, normalDiceList, hungerDiceList
-
-    successes = 0
-    hungerSuccesses = 0
-    crits = 0
-    messyCrits = 0
-    failures = 0
-    hungerFailures = 0
-    bestialFails = 0
+    global normalDiceList, hungerDiceList
 
     normalDiceList.clear()
     hungerDiceList.clear()
 
 
-def roll_again():
+def roll_again_input():
 
     while True:
         answer = input("Roll again? (Or \"re-roll\"). ").lower().strip().split()
@@ -127,24 +130,35 @@ def roll_again():
             continue
 
 
-def re_roll():
+def re_roll(results):
     global normalDiceList
 
     # show existing normal rolls, receive values to re-roll
-    values = get_reroll_values(normalDiceList)
-    print(values)
+    values = get_reroll_values(normalDiceList, results)
+    diceToReroll = sum(values)
 
-    # pop rerolls
+    # remove the dice we're going to re-roll from the list, return the amended list
+    normalDiceList = pop_rerolls(normalDiceList, values)
+
     # roll all popped values
+    newRolls = roll_dice(diceToReroll)
+
+    # evaluate & print new rolls
+    print_rerolls(newRolls, normalDiceList)
+
     # append all rolls to normal dice list
-    # evaluate again, print again
+    normalDiceList += newRolls
+
+    # evaluate entire set again, print again
+    newResults = evaluate_dice()
+    print_results(newResults)
 
 
-def get_reroll_values(normalDice_):
+def get_reroll_values(normalDiceList_, priorResults):
 
     translatedList = []
 
-    for result in normalDice_:
+    for result in normalDiceList_:
         if result == 10:
             translatedList.append("crit")
         elif result >= 6:
@@ -153,7 +167,7 @@ def get_reroll_values(normalDice_):
             translatedList.append("fail")
 
     print(f"\nHere are your normal dice results: "
-          f"\nRaw values: {normalDice_}"
+          f"\nRaw values: {normalDiceList_}"
           f"\nResults: {translatedList}")
 
     while True:
@@ -164,7 +178,7 @@ def get_reroll_values(normalDice_):
             if char.isdigit():
                 chosenValues.append(int(char))
 
-        validValues = validate_reroll_values(chosenValues)
+        validValues = validate_reroll_values(chosenValues, priorResults)
         if not validValues[0]:
             print(validValues[1])
             continue
@@ -172,7 +186,7 @@ def get_reroll_values(normalDice_):
             return chosenValues
 
 
-def validate_reroll_values(chosenValues):
+def validate_reroll_values(chosenValues, priorResults):
 
     # first, check that at least 1 number and no more than 3 were entered -- this will naturally catch string answers
     if len(chosenValues) < 1 or len(chosenValues) > 3:
@@ -183,7 +197,8 @@ def validate_reroll_values(chosenValues):
         return False, "You cannot re-roll more than 3 dice."
 
     # now use list comparison to make sure user hasn't tried to re-roll more of any result than they have
-    availableValues = {"failures": failures, "successes": successes, "crits": crits}
+    availableValues = {"failures": priorResults["failures"], "successes": priorResults["successes"],
+                       "crits": priorResults["crits"]}
     errorString = ""
 
     for choice in range(len(chosenValues)):
@@ -196,14 +211,56 @@ def validate_reroll_values(chosenValues):
     return True, ""
 
 
-# def pop_rerolls(normalDice_, rerollValues):
+def pop_rerolls(normalDiceList_, rerollValues):
+
+    failsPopped = []
+    successesPopped = []
+    critsPopped = []
 
     # pop fails from list
-    # pop successes from list
-    # pop crits from list
+    for resultType in range(len(rerollValues)):  # loop once for each of: fails, successes, crits
+        popCounter = 0  # counter for how many fails/successes/crits we want popped
+
+        if resultType == 0:
+            for dice in reversed(normalDiceList_):  # reverse list to iterate and modify in the same loop
+                if dice < 6 and popCounter < rerollValues[resultType]:
+                    failsPopped.append(normalDiceList_.pop(normalDiceList.index(dice)))
+                    popCounter += 1
+        elif resultType == 1:
+            for dice in reversed(normalDiceList_):
+                if 6 <= dice < 10 and popCounter < rerollValues[resultType]:
+                    successesPopped.append((normalDiceList_.pop(normalDiceList.index(dice))))
+                    popCounter += 1
+        else:
+            for dice in reversed(normalDiceList_):
+                if dice == 10 and popCounter < rerollValues[resultType]:
+                    critsPopped.append((normalDiceList_.pop(normalDiceList.index(dice))))
+                    popCounter += 1
+
+    return normalDiceList_
+
+
+def print_rerolls(rerollList, normalDiceList_):
+    print(f"\nThe results of your re-rolls are: {rerollList}")
+    print(f"New normal dice ({len(normalDiceList_) + len(rerollList)}): "
+          f"{normalDiceList_ + rerollList}")
+    input("\nPress Enter to re-evaluate all of your rolls. ")
 
 
 def main():
+
+    results = new_roll()
+    while True:
+        rollAgain = roll_again_input()
+        if rollAgain == 0:
+            re_roll(results)
+        elif rollAgain == 1:
+            results = new_roll()
+        else:
+            break
+
+
+def new_roll():
     global normalDiceList, hungerDiceList
 
     clear_results()
@@ -214,17 +271,11 @@ def main():
     normalDiceList = roll_dice(normalDice)
     hungerDiceList = roll_dice(hungerDice)
 
-    evaluate_dice()
+    results = evaluate_dice()
 
-    print_results(normalDice, hungerDice)
+    print_results(results)
+
+    return results
 
 
-while True:
-    main()
-    rollAgain = roll_again()
-    if rollAgain == 0:
-        re_roll()
-    elif rollAgain == 1:
-        continue
-    else:
-        break
+main()
