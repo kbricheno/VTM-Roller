@@ -1,4 +1,3 @@
-import sys
 import tkinter.messagebox
 from tkinter import *
 from tkinter import ttk
@@ -83,7 +82,12 @@ hungerDiceList = []
 # set up main application window & title it
 root = Tk()
 root.title("Vampire: The Masquerade | Dice Roller")
-root.geometry("350x350")
+root.geometry("375x375")
+# root.maxsize(375, 375)
+
+# these 2 tell the widget to re-centre in the window if it's resized
+root.columnconfigure(0, weight=1)
+root.rowconfigure(0, weight=1)
 
 normalDiceImages = {"success": PhotoImage(file="DiceImages/normalSuccess.png"),
                     "crit": PhotoImage(file="DiceImages/normalCrit.png"),
@@ -93,12 +97,6 @@ hungerDiceImages = {"success": PhotoImage(file="DiceImages/hungerSuccess.png"),
                     "crit": PhotoImage(file="DiceImages/hungerCrit.png"),
                     "fail": PhotoImage(file="DiceImages/hungerFail.png"),
                     "bestialFail": PhotoImage(file="DiceImages/hungerBestialFail.png")}
-
-normalDice = StringVar(value="0")
-hungerDice = StringVar(value="0")
-results = StringVar()
-
-canvases = []
 
 
 class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 for hunger
@@ -158,53 +156,63 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
     def finalise_canvas(self):  # set width & potentially disable scrollbar
         # set the width & height to show 3x3 dice (i think most people will roll 9 or fewer dice)
         dieWidth = self.scrollFrame.winfo_children()[0].winfo_reqwidth()
-        self.canvas.configure(width=dieWidth*3, height=dieWidth*3)
+        self.canvas.configure(width=dieWidth * 3, height=dieWidth * 3)
         # don't need to scroll if there are 9 or fewer dice
         if len(self.scrollFrame.winfo_children()) <= 9:
             self.yScroll.grid_forget()
 
-    def destroy_canvas(self):
-        self.container.destroy()
-        self.canvas.destroy()
-        self.yScroll.destroy()
-        self.scrollFrame.destroy()
+
+# special variables that tk can read for the entry fields & text results
+normalDice = StringVar()
+hungerDice = StringVar()
+results = StringVar()
+
+# frame widgets that will hold everything on the 2 screens, stored globally so they can be destroyed easily
+inputFrame = ttk.Frame(root)
+outputFrame = ttk.Frame(root)
 
 
-def rolling(*args):  # *args here because this method can be called by both a button (no argument) and
-    # a <Return> event (event argument), so it must be able to receive either 0 or 1 argument
-    global normalDiceList, hungerDiceList
+def create_roll_input():  # generates the starting frame in which users enter dice numbers and click "roll"
+    global inputFrame
 
-    # discard any previous results
-    for canvas_ in canvases:
-        canvas_.destroy_canvas()
-    canvases.clear()
+    outputFrame.destroy()
+    inputFrame = ttk.Frame(root, padding=50, relief="groove")
+    inputFrame.grid()  # "grid" places the created widget in the window
+    root.minsize(200, 220)
+    root.bind("<Return>", submit_new_roll)  # also bind return (no matter what is selected) to submit the roll
 
-    # receive and validate input (ensure blanks = 0, ensure total > 0)
-    submit_validation()
+    # create a labelled frame to hold the labels and entry fields
+    entryFrame = ttk.LabelFrame(inputFrame, text="Dice:", padding=5)
+    entryFrame.grid(column=0, row=0, sticky=NSEW)
 
-    # roll the dice
-    normalDiceList = d.roll_dice(int(normalDice.get()))
-    hungerDiceList = d.roll_dice(int(hungerDice.get()))
+    # create entry labels
+    ttk.Label(entryFrame, text="Normal:").grid(column=0, row=0)
+    ttk.Label(entryFrame, text="Hunger:").grid(column=0, row=1)
 
-    # generate scrollable canvas of buttons for normal dice, scrollable canvas of labels for hunger dice
-    if normalDiceList:
-        normalScrollCanvas = ScrollableCanvas(mainFrame, 0, 4, True)
-        normalScrollCanvas.populate_frame(normalDiceList)
-        canvases.append(normalScrollCanvas)
+    # create entry fields
+    normalEntry = ttk.Entry(entryFrame, width=4, textvariable=normalDice, validate="key")  # validate on key press
+    # register essentially holds the proposed edit and puts it through validation before setting the stringvar
+    normalEntry["validatecommand"] = normalEntry.register(
+        entry_validation), "%P", "%d"  # %P = key pressed, %d = action
+    normalEntry.grid(column=1, row=0, padx=2.5, pady=2.5)
+    # when selecting the entry field, call a temp function that highlights the existing 0s for easy overwriting
+    normalEntry.bind("<FocusIn>", lambda e: normalEntry.selection_range(0, END))
 
-    if hungerDiceList:
-        hungerScrollCanvas = ScrollableCanvas(mainFrame, 1, 4, False)
-        hungerScrollCanvas.populate_frame(hungerDiceList)
-        canvases.append(hungerScrollCanvas)
+    # same again for the hunger entry field
+    hungerEntry = ttk.Entry(entryFrame, width=4, textvariable=hungerDice, validate="key")
+    hungerEntry["validatecommand"] = hungerEntry.register(entry_validation), "%P", "%d"
+    hungerEntry.grid(column=1, row=1, padx=2.5, pady=2.5)
+    hungerEntry.bind("<FocusIn>", lambda e: hungerEntry.selection_range(0, END))
 
-    # evaluate the dice
-    evaluatedResults = d.evaluate_dice(normalDiceList, hungerDiceList)
+    # reset the default values in the entry fields (any input will overwrite this)
+    normalDice.set("0")
+    hungerDice.set("0")
 
-    # populate label with evaluations
-    results.set(d.print_results(evaluatedResults))
+    # create the "roll" button
+    ttk.Button(inputFrame, text="Roll", command=submit_new_roll).grid(column=0, row=1, sticky=NSEW, pady=5)
 
 
-def instant_validation(attemptedInput, action):  # validation that happens while the user inserts characters
+def entry_validation(attemptedInput, action):  # validation that happens while the user inserts characters
     if action == "1":  # only validate on inserting characters -- overwriting, deleting, etc. is always allowed
         if not attemptedInput.isdigit():  # only allow numbers
             return False
@@ -216,49 +224,71 @@ def instant_validation(attemptedInput, action):  # validation that happens while
         return True
 
 
-def submit_validation():  # validation that happens only once the user has submitted their entry
+def submit_new_roll(*args):  # validate the entry, then request the roll and output generation
+    # this function uses *args because it can be called by both a button (no argument) and a <Return> event
+    # (event argument), so it must be able to receive either 0 or 1 argument
+
+    global normalDiceList, hungerDiceList
+
+    # turn entry blanks into 0, ensure entry total > 0
     if not normalDice.get(): normalDice.set("0")
     if not hungerDice.get(): hungerDice.set("0")
 
     try:
         (int(normalDice.get()) + int(hungerDice.get())) / (int(normalDice.get()) + int(hungerDice.get()))
-        results.set(f"{normalDice.get()}, {hungerDice.get()}")
+
+        # roll the dice
+        normalDiceList = d.roll_dice(int(normalDice.get()))
+        hungerDiceList = d.roll_dice(int(hungerDice.get()))
+
+        # generate the output
+        create_roll_output()
+
     except ZeroDivisionError:
         tkinter.messagebox.showerror("Invalid Input", "Please enter at least one number.")
 
 
-def normal_dice_input(event):  # auto highlight existing text inside the entry field for easy overwriting
-    normalEntry.selection_range(0, END)
+def create_roll_output():
+    global normalDiceList, hungerDiceList, inputFrame, outputFrame
+
+    inputFrame.destroy()
+    outputFrame = ttk.Frame(root, padding=50, relief="groove")
+    outputFrame.grid()
+    root.minsize(430, 435)
+    root.unbind("<Return>")  # unbind return from submitting a new roll on this screen
+
+    # create a label to show the evaluated text results
+    ttk.Label(outputFrame, textvariable=results).grid(column=0, row=0, columnspan=2, sticky=W, padx=10)
+
+    # evaluate the dice
+    evaluatedResults = d.evaluate_dice(normalDiceList, hungerDiceList)
+
+    # populate label with evaluations
+    results.set(d.print_results(evaluatedResults))
+
+    ttk.Separator(outputFrame, orient=HORIZONTAL).grid(column=0, row=1, sticky=EW, columnspan=2, padx=10, pady=15)
+
+    # generate scrollable canvas of buttons for normal dice, scrollable canvas of labels for hunger dice
+    if normalDiceList:
+        normalFrame = ttk.LabelFrame(outputFrame, text="Normal Results:")
+        normalFrame.grid(column=0, row=2, sticky=N, columnspan=1 if hungerDiceList else 2, padx=10)
+        normalScrollCanvas = ScrollableCanvas(normalFrame, 0, 0, True)
+        normalScrollCanvas.populate_frame(normalDiceList)
+        # create a button for re-rolling only if normal dice are available
+        ttk.Button(normalFrame, text="Re-Roll (Up to 3)").grid(column=0, row=1, sticky=EW, padx=10, pady=10)
+
+    if hungerDiceList:
+        hungerFrame = ttk.LabelFrame(outputFrame, text="Hunger Results:")
+        hungerFrame.grid(column=1 if normalDiceList else 0, row=2, sticky=N, columnspan=1 if normalDiceList else 2,
+                         padx=10)
+        hungerScrollCanvas = ScrollableCanvas(hungerFrame, 0, 0, False)
+        hungerScrollCanvas.populate_frame(hungerDiceList)
+
+    # create button for new roll
+    ttk.Button(outputFrame, text="New Roll", command=create_roll_input).grid(column=0, row=3, sticky=N, columnspan=2,
+                                                                             padx=10, pady=(15, 0))
 
 
-def hunger_dice_input(event):  # same as above but for other entry field
-    hungerEntry.selection_range(0, END)
-
-
-# frame widget that will hold everything else. stored as a variable so it can be referenced as a parent
-mainFrame = ttk.Frame(root, padding=130, relief="groove")
-mainFrame.grid()  # "grid" places the created widget in the window
-
-# these 2 tell the widget to re-centre in the window if it's resized
-root.columnconfigure(0, weight=1)
-root.rowconfigure(0, weight=1)
-
-# create additional labels and buttons
-ttk.Label(mainFrame, text="NORMAL:").grid(column=0, row=0)  # input label
-ttk.Label(mainFrame, text="HUNGER:").grid(column=0, row=1)  # input label
-ttk.Label(mainFrame, textvariable=results).grid(column=0, columnspan=2, row=3)  # temporary output label
-ttk.Button(mainFrame, text="Roll", command=rolling).grid(column=0, columnspan=2, row=2)  # submit button
-root.bind("<Return>", rolling)  # also bind return (no matter what is selected) to the roll method
-
-normalEntry = ttk.Entry(mainFrame, width=4, textvariable=normalDice, validate="key")  # validate on key press
-# register essentially holds the proposed edit and puts it through validation before setting the stringvar
-normalEntry["validatecommand"] = normalEntry.register(instant_validation), "%P", "%d"  # %P = key pressed, %d = action
-normalEntry.grid(column=1, row=0)
-normalEntry.bind("<FocusIn>", normal_dice_input)
-
-hungerEntry = ttk.Entry(mainFrame, width=4, textvariable=hungerDice, validate="key")
-hungerEntry["validatecommand"] = hungerEntry.register(instant_validation), "%P", "%d"
-hungerEntry.grid(column=1, row=1)
-hungerEntry.bind("<FocusIn>", hunger_dice_input)
+create_roll_input()
 
 root.mainloop()
