@@ -6,84 +6,10 @@ import diceHandling as d
 normalDiceList = []
 hungerDiceList = []
 
-# def new_roll():  # roll a fresh set of dice
-#     global normalDiceList, hungerDiceList
-#     m.clear_results(normalDiceList, hungerDiceList)
-#
-#     normalDice = int(m.get_dice(True))
-#     hungerDice = int(m.get_dice(False))
-#
-#     normalDiceList = m.roll_dice(normalDice)
-#     hungerDiceList = m.roll_dice(hungerDice)
-#
-#     results = m.evaluate_dice(normalDiceList, hungerDiceList)
-#
-#     m.print_results(results, normalDiceList, hungerDiceList)
-#
-#     return results
-#
-#
-# def roll_again_input():
-#
-#     while True:
-#         answer = input("Roll again? (Or \"re-roll\"). ").lower().strip()
-#         acceptableTerms = ["re-roll", "reroll", "redo", "re-do", "willpower"]
-#         for word in answer.split():
-#             if word in acceptableTerms:
-#                 return 0
-#         if "n" in [*answer]:
-#             return 2
-#         elif "y" in [*answer]:
-#             return 1
-#         else:
-#             print("Please type \"Y\", \"N\", or \"re-roll\"\n")
-#             continue
-#
-#
-# def re_roll(results):  # spend willpower to re-roll 3 existing normal dice
-#     global normalDiceList
-#
-#     # show existing normal rolls, receive values to re-roll
-#     values = m.get_reroll_values(normalDiceList, results)
-#     diceToReroll = sum(values)
-#
-#     # remove the dice we're going to re-roll from the list, return the amended list
-#     normalDiceList = m.pop_rerolls(normalDiceList, values)
-#
-#     # roll all popped values
-#     newRolls = m.roll_dice(diceToReroll)
-#
-#     # evaluate & print new rolls
-#     m.print_rerolls(newRolls, normalDiceList)
-#
-#     # append all rolls to normal dice list
-#     normalDiceList += newRolls
-#
-#     # evaluate entire set again, print again
-#     newResults = m.evaluate_dice(normalDiceList, hungerDiceList)
-#     m.print_results(newResults, normalDiceList, hungerDiceList)
-#
-#
-# def main():
-#
-#     results = new_roll()
-#     while True:
-#         rollAgain = roll_again_input()
-#         if rollAgain == 0:
-#             re_roll(results)
-#         elif rollAgain == 1:
-#             results = new_roll()
-#         else:
-#             break
-
-
-# main()
-
 # set up main application window & title it
 root = Tk()
 root.title("Vampire: The Masquerade | Dice Roller")
 root.geometry("375x375")
-# root.maxsize(375, 375)
 
 # these 2 tell the widget to re-centre in the window if it's resized
 root.columnconfigure(0, weight=1)
@@ -97,6 +23,54 @@ hungerDiceImages = {"success": PhotoImage(file="DiceImages/hungerSuccess.png"),
                     "crit": PhotoImage(file="DiceImages/hungerCrit.png"),
                     "fail": PhotoImage(file="DiceImages/hungerFail.png"),
                     "bestialFail": PhotoImage(file="DiceImages/hungerBestialFail.png")}
+
+selectedButtons = []  # collects the buttons selected for re-rolling
+rerollCount = 0
+
+
+def assign_image(normal, die):  # function to determine which image should be shown for each die based on vtm rules
+    if normal:
+        if die == 10:
+            image = normalDiceImages["crit"]
+        elif die >= 6:
+            image = normalDiceImages["success"]
+        else:
+            image = normalDiceImages["fail"]
+    else:
+        if die == 10:
+            image = hungerDiceImages["crit"]
+        elif die >= 6:
+            image = hungerDiceImages["success"]
+        elif die > 1:
+            image = hungerDiceImages["fail"]
+        else:
+            image = hungerDiceImages["bestialFail"]
+    return image
+
+
+class ListButton(Button):  # i need a button that can store an index in a list of values
+    def __init__(self, parent, index):
+        super().__init__(master=parent)
+        self.index = index
+        self.selected = False
+        self.defaultColor = self.cget("bg")
+
+    def select_die(self):  # a toggle method
+        global selectedButtons
+
+        previousValue = self.selected
+
+        if len(selectedButtons) < 3:  # only allow up to 3 selected dice
+            self.selected = not self.selected
+        elif self.selected:  # always allow deselection
+            self.selected = False
+
+        if self.selected != previousValue:  # update the list of button indexes if the button's state has changed
+            if self.selected: selectedButtons.append(self.index)
+            else: selectedButtons.remove(self.index)
+
+        # change the button's background colour depending on whether it's selected
+        self.configure(bg="#500000" if self.selected else self.defaultColor)
 
 
 class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 for hunger
@@ -120,6 +94,8 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
         self.yScroll.grid(column=1, row=0, sticky=NS)
         self.canvas.create_window((0, 0), window=self.scrollFrame, anchor=NW)
 
+        self.buttonList = []  # store the buttons so they can be indexed for re-rolling
+
     def populate_frame(self, dice):
         global normalDiceImages, hungerDiceImages
 
@@ -131,25 +107,15 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
             if spawnAtColumn == 0:
                 spawnAtRow += 1
 
-            if self.normal:  # normal-specific function because normal dice must spawn as buttons & with diff images
-                if die == 10:  # assign images to dice depending on their values
-                    spawnWithImage = normalDiceImages["crit"]
-                elif die >= 6:
-                    spawnWithImage = normalDiceImages["success"]
-                else:
-                    spawnWithImage = normalDiceImages["fail"]
-                ttk.Button(self.scrollFrame, text=die, image=spawnWithImage).grid(column=spawnAtColumn, row=spawnAtRow)
+            if self.normal:  # normal-specific because normal dice must spawn as buttons for re-rolling
+                button = ListButton(self.scrollFrame, len(self.buttonList))
+                button.configure(image=assign_image(True, die), command=button.select_die, relief="groove")
+                button.grid(column=spawnAtColumn, row=spawnAtRow)
+                self.buttonList.append(button)
 
             else:  # hunger dice spawn as labels bc user doesn't need to click on them for re-rolling
-                if die == 10:
-                    spawnWithImage = hungerDiceImages["crit"]
-                elif die >= 6:
-                    spawnWithImage = hungerDiceImages["success"]
-                elif die > 1:
-                    spawnWithImage = hungerDiceImages["fail"]
-                else:
-                    spawnWithImage = hungerDiceImages["bestialFail"]
-                ttk.Label(self.scrollFrame, image=spawnWithImage).grid(column=spawnAtColumn, row=spawnAtRow)
+                (ttk.Label(self.scrollFrame, image=assign_image(False, die)).
+                 grid(column=spawnAtColumn, row=spawnAtRow))
 
         self.finalise_canvas()
 
@@ -161,11 +127,34 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
         if len(self.scrollFrame.winfo_children()) <= 9:
             self.yScroll.grid_forget()
 
+    def reroll_dice(self):
+        global normalDiceList, hungerDiceList, selectedButtons, rerollCount
+
+        if len(selectedButtons) > 0:  # don't do anything if no dice are selected
+            rerollCount += 1
+
+            for die in selectedButtons:
+                normalDiceList[die] = d.roll_dice(1)[0]  # re-roll the die, add its value to a list, reassign its image
+                self.buttonList[die].configure(image=assign_image(True, normalDiceList[die]))
+
+            # re-evaluate all dice
+            evaluatedResults = d.evaluate_dice(normalDiceList, hungerDiceList)
+
+            # update results label, add re-roll counter
+            results.set(d.print_results(evaluatedResults))
+            rerollText.set(f"Re-rolled {rerollCount} time(s).")
+
+            # deselect all dice
+            for die in reversed(selectedButtons):  # select_die() removes dice from list, so reverse index
+                self.buttonList[die].select_die()
+            selectedButtons.clear()
+
 
 # special variables that tk can read for the entry fields & text results
 normalDice = StringVar()
 hungerDice = StringVar()
 results = StringVar()
+rerollText = StringVar()
 
 # frame widgets that will hold everything on the 2 screens, stored globally so they can be destroyed easily
 inputFrame = ttk.Frame(root)
@@ -173,12 +162,18 @@ outputFrame = ttk.Frame(root)
 
 
 def create_roll_input():  # generates the starting frame in which users enter dice numbers and click "roll"
-    global inputFrame
+    global inputFrame, rerollCount
 
+    # clean up: if a previous roll took place, remove its frame, re-roll counter, and selected re-roll dice
     outputFrame.destroy()
+    rerollCount = 0
+    rerollText.set("")
+    selectedButtons.clear()
+
+    # top-level frame
     inputFrame = ttk.Frame(root, padding=50, relief="groove")
     inputFrame.grid()  # "grid" places the created widget in the window
-    root.minsize(200, 220)
+    root.minsize(200, 220)  # ensure everything is visible at all times
     root.bind("<Return>", submit_new_roll)  # also bind return (no matter what is selected) to submit the roll
 
     # create a labelled frame to hold the labels and entry fields
@@ -235,7 +230,8 @@ def submit_new_roll(*args):  # validate the entry, then request the roll and out
     if not hungerDice.get(): hungerDice.set("0")
 
     try:
-        (int(normalDice.get()) + int(hungerDice.get())) / (int(normalDice.get()) + int(hungerDice.get()))
+        # check for a zero division error, meaning user entered no dice
+        1 / (int(normalDice.get()) + int(hungerDice.get()))
 
         # roll the dice
         normalDiceList = d.roll_dice(int(normalDice.get()))
@@ -275,7 +271,11 @@ def create_roll_output():
         normalScrollCanvas = ScrollableCanvas(normalFrame, 0, 0, True)
         normalScrollCanvas.populate_frame(normalDiceList)
         # create a button for re-rolling only if normal dice are available
-        ttk.Button(normalFrame, text="Re-Roll (Up to 3)").grid(column=0, row=1, sticky=EW, padx=10, pady=10)
+        (ttk.Button(normalFrame, text="Re-Roll (Pick up to 3)", command=normalScrollCanvas.reroll_dice).
+         grid(column=0, row=1, sticky=EW, padx=10, pady=10))
+        # create a re-roll label only if normal dice are available
+        rerollLabel = ttk.Label(outputFrame, textvariable=rerollText)
+        rerollLabel.grid(column=0, row=3, sticky=N, columnspan=1 if hungerDiceList else 2, padx=10)
 
     if hungerDiceList:
         hungerFrame = ttk.LabelFrame(outputFrame, text="Hunger Results:")
@@ -285,10 +285,10 @@ def create_roll_output():
         hungerScrollCanvas.populate_frame(hungerDiceList)
 
     # create button for new roll
-    ttk.Button(outputFrame, text="New Roll", command=create_roll_input).grid(column=0, row=3, sticky=N, columnspan=2,
+    ttk.Button(outputFrame, text="New Roll", command=create_roll_input).grid(column=0, row=4, sticky=N, columnspan=2,
                                                                              padx=10, pady=(15, 0))
 
 
-create_roll_input()
+create_roll_input()  # start the program
 
 root.mainloop()
