@@ -3,6 +3,7 @@ from tkinter import *
 from tkinter import ttk
 import diceHandling as d
 
+
 normalDiceList = []
 hungerDiceList = []
 
@@ -96,14 +97,6 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
         self.yScroll.grid(column=1, row=0, sticky=NS)
         self.canvas.create_window((0, 0), window=self.scrollFrame, anchor=NW)
 
-        # bind mouse wheel to scroll the canvas whenever the pointer enters any part of the scrollable canvas
-        # yview_scroll expects an int in either units or pages which it will scroll the canvas by
-        # using a callback enables entering the direction scrolled (which on windows is +/-120 & thus way too large)
-        self.container.bind("<Enter>", lambda e: self.container.bind_all("<MouseWheel>", lambda f: self.canvas.
-                                                                         yview_scroll(-int(f.delta/50), "units")))
-        # unbind mouse wheel scrolling when the pointer leaves the scrollable canvas
-        self.container.bind("<Leave>", lambda e: self.container.unbind_all("<MouseWheel>"))
-
         self.buttonList = []  # store the buttons so they can be indexed for re-rolling
 
     def populate_frame(self, dice):
@@ -136,6 +129,15 @@ class ScrollableCanvas:  # class for readability + i need 2, 1 for normal & 1 fo
         # don't need to scroll if there are 9 or fewer dice
         if len(self.scrollFrame.winfo_children()) <= 9:
             self.yScroll.grid_forget()
+            self.container.unbind_all("<MouseWheel>")
+        else:
+            # bind mouse wheel to scroll the canvas whenever the pointer enters any part of the scrollable canvas
+            # yview_scroll expects an int in either units or pages which it will scroll the canvas by
+            # using a callback enables entering the direction scrolled (which on windows is +/-120 & thus way too large)
+            self.container.bind("<Enter>", lambda e: self.container.bind_all("<MouseWheel>", lambda f: self.canvas.
+                                                                             yview_scroll(-int(f.delta / 50), "units")))
+            # unbind mouse wheel scrolling when the pointer leaves the scrollable canvas
+            self.container.bind("<Leave>", lambda e: self.container.unbind_all("<MouseWheel>"))
 
     def reroll_dice(self):
         global normalDiceList, hungerDiceList, selectedButtons, rerollCount
