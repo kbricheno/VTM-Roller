@@ -2,6 +2,19 @@ import tkinter.messagebox
 from tkinter import *
 from tkinter import ttk
 import diceHandling as d
+import os
+import sys
+
+
+def resource_path(relativePath):  # function that enables pyinstaller to pack the image files into a single exe
+    # i have no idea how this works, full credit for this function to Rainer Niemann on
+    # https://stackoverflow.com/questions/31836104/pyinstaller-and-onefile-how-to-include-an-image-in-the-exe-file
+    try:
+        basePath = sys._MEIPASS
+    except Exception:
+        basePath = os.path.abspath(".")
+
+    return os.path.join(basePath, relativePath)
 
 
 normalDiceList = []
@@ -16,14 +29,14 @@ root.geometry("375x375")
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
 
-normalDiceImages = {"success": PhotoImage(file="DiceImages/normalSuccess.png"),
-                    "crit": PhotoImage(file="DiceImages/normalCrit.png"),
-                    "fail": PhotoImage(file="DiceImages/normalFail.png")}
+normalDiceImages = {"success": PhotoImage(file=resource_path("normalSuccess.png")),
+                    "crit": PhotoImage(file=resource_path("normalCrit.png")),
+                    "fail": PhotoImage(file=resource_path("normalFail.png"))}
 
-hungerDiceImages = {"success": PhotoImage(file="DiceImages/hungerSuccess.png"),
-                    "crit": PhotoImage(file="DiceImages/hungerCrit.png"),
-                    "fail": PhotoImage(file="DiceImages/hungerFail.png"),
-                    "bestialFail": PhotoImage(file="DiceImages/hungerBestialFail.png")}
+hungerDiceImages = {"success": PhotoImage(file=resource_path("hungerSuccess.png")),
+                    "crit": PhotoImage(file=resource_path("hungerCrit.png")),
+                    "fail": PhotoImage(file=resource_path("hungerFail.png")),
+                    "bestialFail": PhotoImage(file=resource_path("hungerBestialFail.png"))}
 
 selectedButtons = []  # collects the buttons selected for re-rolling
 rerollCount = 0
